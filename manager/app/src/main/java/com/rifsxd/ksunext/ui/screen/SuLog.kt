@@ -41,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -174,88 +175,93 @@ fun SuLogScreen(
         },
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
     ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            val scrollState = LocalScrollState.current
-            val isNavBarHidden = scrollState?.isScrollingDown?.value ?: false
-            val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + if (isNavBarHidden) 0.dp else 112.dp
-
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .let { modifier ->
-                        if (bottomBarScrollConnection != null) {
-                            modifier
-                                .nestedScroll(bottomBarScrollConnection)
-                                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                        } else {
-                            modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
-                        }
-                    },
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(
-                    start = 16.dp,
-                    top = 16.dp,
-                    end = 16.dp,
-                    bottom = 16.dp + navBarPadding
-                )
+            PullToRefreshBox(
+                modifier = Modifier.padding(innerPadding),
+                onRefresh = actions.onRefresh,
+                isRefreshing = state.isRefreshing
             ) {
-                item {
-                    SulogStatusSection(state, actions)
-                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                ) {
+                    val scrollState = LocalScrollState.current
+                    val isNavBarHidden = scrollState?.isScrollingDown?.value ?: false
+                    val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + if (isNavBarHidden) 0.dp else 112.dp
 
-                if (state.files.isNotEmpty()) {
+                    LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .let { modifier ->
+                            if (bottomBarScrollConnection != null) {
+                                modifier
+                                    .nestedScroll(bottomBarScrollConnection)
+                                    .nestedScroll(scrollBehavior.nestedScrollConnection)
+                            } else {
+                                modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
+                            }
+                        },
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        top = 16.dp,
+                        end = 16.dp,
+                        bottom = 16.dp + navBarPadding
+                    )
+                ) {
                     item {
-                        ListItem(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { showFileMenu = true },
-                            headlineContent = { Text(stringResource(R.string.sulog_log_files)) },
-                            supportingContent = {
-                                Text(fileSelector.items.getOrNull(fileSelector.selectedIndex) ?: "")
-                            },
-                            leadingContent = { Icon(Icons.AutoMirrored.Filled.List, null) },
-                            trailingContent = {
-                                Box {
-                                    Icon(Icons.Filled.ArrowDropDown, null)
-                                    DropdownMenu(
-                                        expanded = showFileMenu,
-                                        onDismissRequest = { showFileMenu = false }
-                                    ) {
-                                        state.files.forEachIndexed { index, file ->
-                                            DropdownMenuItem(
-                                                text = { Text(fileSelector.items[index]) },
-                                                onClick = {
-                                                    actions.onSelectFile(file.path)
-                                                    showFileMenu = false
-                                                }
-                                            )
+                        SulogStatusSection(state, actions)
+                    }
+
+                    if (state.files.isNotEmpty()) {
+                        item {
+                            ListItem(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showFileMenu = true },
+                                headlineContent = { Text(stringResource(R.string.sulog_log_files)) },
+                                supportingContent = {
+                                    Text(fileSelector.items.getOrNull(fileSelector.selectedIndex) ?: "")
+                                },
+                                leadingContent = { Icon(Icons.AutoMirrored.Filled.List, null) },
+                                trailingContent = {
+                                    Box {
+                                        Icon(Icons.Filled.ArrowDropDown, null)
+                                        DropdownMenu(
+                                            expanded = showFileMenu,
+                                            onDismissRequest = { showFileMenu = false }
+                                        ) {
+                                            state.files.forEachIndexed { index, file ->
+                                                DropdownMenuItem(
+                                                    text = { Text(fileSelector.items[index]) },
+                                                    onClick = {
+                                                        actions.onSelectFile(file.path)
+                                                        showFileMenu = false
+                                                    }
+                                                )
+                                            }
                                         }
                                     }
-                                }
-                            },
-                            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
+                                },
+                                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
                     }
+
+                    sulogEntriesSection(
+                        entries = state.visibleEntries,
+                        errorMessage = state.errorMessage,
+                        onEntryClick = { selectedEntry = it },
+                    )
                 }
 
-                sulogEntriesSection(
-                    entries = state.visibleEntries,
-                    errorMessage = state.errorMessage,
-                    onEntryClick = { selectedEntry = it },
-                )
-            }
-
-            if (state.isLoading || state.isRefreshing) {
-                LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter)
-                )
+                if (state.isLoading || state.isRefreshing) {
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter)
+                    )
+                }
             }
         }
     }
@@ -503,7 +509,7 @@ fun SulogScreen(navigator: DestinationsNavigator) {
     )
     val actions = SulogActions(
         onBack = dropUnlessResumed { navigator.popBackStack() },
-        onRefresh = viewModel::refreshLatest,
+        onRefresh = { viewModel.refreshLatest(refreshing = true) },
         onEnableSulog = viewModel::enableSulog,
         onCleanFile = viewModel::cleanFile,
         onSearchTextChange = viewModel::setSearchText,
