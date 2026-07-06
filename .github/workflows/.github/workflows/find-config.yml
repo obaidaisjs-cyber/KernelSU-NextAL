@@ -1,0 +1,27 @@
+name: Build Redwood Kernel with KernelSU-Next
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-kernel:
+    name: Build Kernel
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Build
+        uses: dabao1955/kernel_build_action@main
+        with:
+          kernel-url: https://github.com/MiCode/Xiaomi_Kernel_OpenSource
+          kernel-branch: redwood-s-oss
+          config: vendor/redwood_QGKI.config
+          arch: arm64
+          aosp-gcc: true
+          aosp-clang: true
+          android-version: 12
+          anykernel3: true
+          release: true
+          ksu: true
+          access-token: ${{ secrets.GITHUB_TOKEN }}
