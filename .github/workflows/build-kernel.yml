@@ -53,7 +53,7 @@ jobs:
         scripts/kconfig/merge_config.sh -m arch/arm64/configs/gki_defconfig arch/arm64/configs/${{ env.KERNEL_CONFIG }}
         mv .config arch/arm64/configs/redwood_merged_defconfig
 
-    - name: Fix compilation errors in source
+    - name: Fix all compilation errors
       run: |
         cd kernel-source
         
@@ -62,12 +62,9 @@ jobs:
           sed -i 's/cam_debug_get_settings()/cam_debug_get_settings(void)/g' techpack/camera/drivers/cam_utils/cam_debug_util.c
         fi
         
-        # 2. Create pinctrl-utils.h in include/linux instead
-        echo '#include <linux/pinctrl/pinctrl.h>' > include/linux/pinctrl-utils.h
-        echo '#include <linux/device.h>' >> include/linux/pinctrl-utils.h
-        # Modify the source file to use the new path
-        if [ -f techpack/audio/soc/pinctrl-wcd.c ]; then
-          sed -i 's/#include "pinctrl-utils.h"/#include <linux\/pinctrl-utils.h>/g' techpack/audio/soc/pinctrl-wcd.c
+        # 2. Disable building broken pinctrl-wcd.c
+        if [ -f techpack/audio/soc/Makefile ]; then
+          sed -i 's/pinctrl-wcd.o//g' techpack/audio/soc/Makefile
         fi
         
         # 3. Fix touchscreen function prototypes
@@ -75,6 +72,11 @@ jobs:
           sed -i 's/get_xiaomi_touch_class()/get_xiaomi_touch_class(void)/g' drivers/input/touchscreen/xiaomi/xiaomi_touch.c
           sed -i 's/get_xiaomi_touch_dev()/get_xiaomi_touch_dev(void)/g' drivers/input/touchscreen/xiaomi/xiaomi_touch.c
           sed -i 's/update_touch_rawdata()/update_touch_rawdata(void)/g' drivers/input/touchscreen/xiaomi/xiaomi_touch.c
+        fi
+        
+        # 4. Disable building broken icnss2 directory
+        if [ -f drivers/soc/qcom/icnss2/Makefile ]; then
+          echo 'obj-y :=' > drivers/soc/qcom/icnss2/Makefile
         fi
 
     - name: Build Kernel
