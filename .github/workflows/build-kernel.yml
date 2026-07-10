@@ -62,10 +62,13 @@ jobs:
           sed -i 's/cam_debug_get_settings()/cam_debug_get_settings(void)/g' techpack/camera/drivers/cam_utils/cam_debug_util.c
         fi
         
-        # 2. Create missing directory and pinctrl-utils.h
-        mkdir -p techpack/audio/soc
-        echo '#include <linux/pinctrl/pinctrl.h>' > techpack/audio/soc/pinctrl-utils.h
-        echo '#include <linux/device.h>' >> techpack/audio/soc/pinctrl-utils.h
+        # 2. Create pinctrl-utils.h in include/linux instead
+        echo '#include <linux/pinctrl/pinctrl.h>' > include/linux/pinctrl-utils.h
+        echo '#include <linux/device.h>' >> include/linux/pinctrl-utils.h
+        # Modify the source file to use the new path
+        if [ -f techpack/audio/soc/pinctrl-wcd.c ]; then
+          sed -i 's/#include "pinctrl-utils.h"/#include <linux\/pinctrl-utils.h>/g' techpack/audio/soc/pinctrl-wcd.c
+        fi
         
         # 3. Fix touchscreen function prototypes
         if [ -f drivers/input/touchscreen/xiaomi/xiaomi_touch.c ]; then
