@@ -1,0 +1,70 @@
+name: Build Scarlet Kernel for Redwood (HyperOS)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Read config.properties
+      id: config
+      run: |
+        echo "KERNEL_SOURCE=$(grep '^KERNEL_SOURCE=' config.properties | cut -d '=' -f2-)" >> $GITHUB_ENV
+        echo "KERNEL_SOURCE_BRANCH=$(grep '^KERNEL_SOURCE_BRANCH=' config.properties | cut -d '=' -f2-)" >> $GITHUB_ENV
+        echo "KERNEL_CONFIG=$(grep '^KERNEL_CONFIG=' config.properties | cut -d '=' -f2-)" >> $GITHUB_ENV
+        echo "ARCH=$(grep '^ARCH=' config.properties | cut -d '=' -f2-)" >> $GITHUB_ENV
+
+    - name: Clone Kernel Source
+      run: |
+        git clone --depth=1 ${{ env.KERNEL_SOURCE }} -b ${{ env.KERNEL_SOURCE_BRANCH }} kernel-source
+
+    - name: Cache Toolchain
+      id: cache-toolchain
+      uses: actions/cache@v4
+      with:
+        path: |
+          toolchain
+          clang
+        key: ${{ runner.os }}-toolchain
+
+    - name: Setup Toolchain
+      if: steps.cache-toolchain.outputs.cache-hit != 'true'
+      run: |
+        sudo apt update
+        sudo apt install -y git make flex bison bc cpio python-is-python3
+        git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 toolchain
+        git clone --depth=1 https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang
+
+    - name: Inject KernelSU-Next (Manual Method)
+      run: |
+        cd kernel-source
+        git clone --depth=1 https://github.com/KernelSU-Next/KernelSU-Next.git KernelSU
+        bash KernelSU/tools/init_kernelsu.sh kernel-source || true
+
+    - name: Merge Config Fragment
+      run: |
+        cd kernel-source
+        export ARCH=${{ env.ARCH }}
+        export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+        export CROSS_COMPILE=$GITHUB_WORKSPACE/toolchain/bin/aarch64-linux-android-
+        scripts/kconfig/merge_config.sh -m arch/arm64/configs/gki_defconfig arch/arm64/configs/${{ env.KERNEL_CONFIG }}
+        mv .config arch/arm64/configs/redwood_merged_defconfig
+
+    - name: Build Kernel
+      run: |
+        cd kernel-source
+        export ARCH=${{ env.ARCH }}
+        export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+        export CROSS_COMPILE=$GITHUB_WORKSPACE/toolchain/bin/aarch64-linux-android-
+        make -j$(nproc) CC=clang CLANG_TRIPLE=aarch64-linux-gnu- LLVM_IAS=1 redwood_merged_defconfig
+        make -j$(nproc) CC=clang CLANG_TRIPLE=aarch64-linux-gnu- LLVM_IAS=1
+
+    - name: Upload Boot Image
+      uses: actions/upload-artifact@v4
+      with:
+        name: boot-img
+        path: kernel-source/arch/arm64/boot/Image
