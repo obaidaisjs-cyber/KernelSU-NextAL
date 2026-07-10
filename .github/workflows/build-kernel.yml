@@ -39,11 +39,10 @@ jobs:
         git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 toolchain
         git clone --depth=1 https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang
 
-    - name: Inject KernelSU-Next (Manual Method)
+    - name: Inject KernelSU-Next (via setup.sh)
       run: |
         cd kernel-source
-        git clone --depth=1 https://github.com/KernelSU-Next/KernelSU-Next.git KernelSU
-        bash KernelSU/tools/init_kernelsu.sh kernel-source || true
+        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
 
     - name: Merge Config Fragment
       run: |
@@ -54,7 +53,7 @@ jobs:
         scripts/kconfig/merge_config.sh -m arch/arm64/configs/gki_defconfig arch/arm64/configs/${{ env.KERNEL_CONFIG }}
         mv .config arch/arm64/configs/redwood_merged_defconfig
 
-    - name: Fix all compilation errors
+    - name: Fix compilation errors in source
       run: |
         cd kernel-source
         
@@ -63,7 +62,7 @@ jobs:
           sed -i 's/cam_debug_get_settings()/cam_debug_get_settings(void)/g' techpack/camera/drivers/cam_utils/cam_debug_util.c
         fi
         
-        # 2. Create missing pinctrl-utils.h
+        # 2. Create missing directory and pinctrl-utils.h
         mkdir -p techpack/audio/soc
         echo '#include <linux/pinctrl/pinctrl.h>' > techpack/audio/soc/pinctrl-utils.h
         echo '#include <linux/device.h>' >> techpack/audio/soc/pinctrl-utils.h
