@@ -1,4 +1,4 @@
-name: Build Scarlet Kernel for Redwood (HyperOS)
+name: Build Official Kernel for Redwood (HyperOS)
 
 on:
   workflow_dispatch:
@@ -18,7 +18,7 @@ jobs:
         echo "KERNEL_CONFIG=$(grep '^KERNEL_CONFIG=' config.properties | cut -d '=' -f2-)" >> $GITHUB_ENV
         echo "ARCH=$(grep '^ARCH=' config.properties | cut -d '=' -f2-)" >> $GITHUB_ENV
 
-    - name: Clone Kernel Source
+    - name: Clone Kernel Source (Official Xiaomi)
       run: |
         git clone --depth=1 ${{ env.KERNEL_SOURCE }} -b ${{ env.KERNEL_SOURCE_BRANCH }} kernel-source
 
@@ -53,6 +53,27 @@ jobs:
         export CROSS_COMPILE=$GITHUB_WORKSPACE/toolchain/bin/aarch64-linux-android-
         scripts/kconfig/merge_config.sh -m arch/arm64/configs/gki_defconfig arch/arm64/configs/${{ env.KERNEL_CONFIG }}
         mv .config arch/arm64/configs/redwood_merged_defconfig
+
+    - name: Fix all compilation errors
+      run: |
+        cd kernel-source
+        
+        # 1. Fix camera function prototype
+        if [ -f techpack/camera/drivers/cam_utils/cam_debug_util.c ]; then
+          sed -i 's/cam_debug_get_settings()/cam_debug_get_settings(void)/g' techpack/camera/drivers/cam_utils/cam_debug_util.c
+        fi
+        
+        # 2. Create missing pinctrl-utils.h
+        mkdir -p techpack/audio/soc
+        echo '#include <linux/pinctrl/pinctrl.h>' > techpack/audio/soc/pinctrl-utils.h
+        echo '#include <linux/device.h>' >> techpack/audio/soc/pinctrl-utils.h
+        
+        # 3. Fix touchscreen function prototypes
+        if [ -f drivers/input/touchscreen/xiaomi/xiaomi_touch.c ]; then
+          sed -i 's/get_xiaomi_touch_class()/get_xiaomi_touch_class(void)/g' drivers/input/touchscreen/xiaomi/xiaomi_touch.c
+          sed -i 's/get_xiaomi_touch_dev()/get_xiaomi_touch_dev(void)/g' drivers/input/touchscreen/xiaomi/xiaomi_touch.c
+          sed -i 's/update_touch_rawdata()/update_touch_rawdata(void)/g' drivers/input/touchscreen/xiaomi/xiaomi_touch.c
+        fi
 
     - name: Build Kernel
       run: |
